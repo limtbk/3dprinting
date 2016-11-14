@@ -594,8 +594,13 @@ block->steps_y = labs(target[Y_AXIS]-position[Y_AXIS]);
 #else
 // corexy planning
 // these equations follow the form of the dA and dB equations on http://www.corexy.com/theory.html
+#ifndef COREXY_SWAP
 block->steps_x = labs((target[X_AXIS]-position[X_AXIS]) + (target[Y_AXIS]-position[Y_AXIS]));
 block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-position[Y_AXIS]));
+#else
+block->steps_x = labs((target[Y_AXIS]-position[Y_AXIS]) + (target[X_AXIS]-position[X_AXIS]));
+block->steps_y = labs((target[Y_AXIS]-position[Y_AXIS]) - (target[X_AXIS]-position[X_AXIS]));
+#endif
 #endif
   block->steps_z = labs(target[Z_AXIS]-position[Z_AXIS]);
   block->steps_e = labs(target[E_AXIS]-position[E_AXIS]);
@@ -628,6 +633,7 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
     block->direction_bits |= (1<<Y_AXIS); 
   }
 #else
+#ifndef COREXY_SWAP
   if ((target[X_AXIS]-position[X_AXIS]) + (target[Y_AXIS]-position[Y_AXIS]) < 0)
   {
     block->direction_bits |= (1<<X_AXIS); 
@@ -636,6 +642,17 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
   {
     block->direction_bits |= (1<<Y_AXIS); 
   }
+#else
+  if ((target[Y_AXIS]-position[Y_AXIS]) + (target[X_AXIS]-position[X_AXIS]) < 0)
+  {
+    block->direction_bits |= (1<<X_AXIS); 
+  }
+  if ((target[Y_AXIS]-position[Y_AXIS]) - (target[X_AXIS]-position[X_AXIS]) < 0)
+  {
+    block->direction_bits |= (1<<Y_AXIS); 
+  }
+#endif
+
 #endif
   if (target[Z_AXIS] < position[Z_AXIS])
   {
@@ -720,8 +737,13 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
     delta_mm[X_AXIS] = (target[X_AXIS]-position[X_AXIS])/axis_steps_per_unit[X_AXIS];
     delta_mm[Y_AXIS] = (target[Y_AXIS]-position[Y_AXIS])/axis_steps_per_unit[Y_AXIS];
   #else
+  #ifndef COREXY_SWAP
     delta_mm[X_AXIS] = ((target[X_AXIS]-position[X_AXIS]) + (target[Y_AXIS]-position[Y_AXIS]))/axis_steps_per_unit[X_AXIS];
     delta_mm[Y_AXIS] = ((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-position[Y_AXIS]))/axis_steps_per_unit[Y_AXIS];
+  #else
+    delta_mm[X_AXIS] = ((target[Y_AXIS]-position[Y_AXIS]) - (target[X_AXIS]-position[X_AXIS]))/axis_steps_per_unit[Y_AXIS];
+    delta_mm[Y_AXIS] = ((target[Y_AXIS]-position[Y_AXIS]) + (target[X_AXIS]-position[X_AXIS]))/axis_steps_per_unit[X_AXIS];
+  #endif
   #endif
   delta_mm[Z_AXIS] = (target[Z_AXIS]-position[Z_AXIS])/axis_steps_per_unit[Z_AXIS];
   delta_mm[E_AXIS] = ((target[E_AXIS]-position[E_AXIS])/axis_steps_per_unit[E_AXIS])*volumetric_multiplier[active_extruder]*extrudemultiply/100.0;
