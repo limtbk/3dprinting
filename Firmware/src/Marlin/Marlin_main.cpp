@@ -329,9 +329,6 @@ bool cancel_heatup = false ;
   int meas_delay_cm = MEASUREMENT_DELAY_CM;  //distance delay setting
 #endif
 
-const char errormagic[] PROGMEM = "Error:";
-const char echomagic[] PROGMEM = "echo:";
-
 //===========================================================================
 //=============================Private Variables=============================
 //===========================================================================
@@ -405,27 +402,22 @@ void serial_echopair_P(const char *s_P, double v)
 void serial_echopair_P(const char *s_P, unsigned long v)
     { serialprintPGM(s_P); SERIAL_ECHO(v); }
 
-#ifdef SDSUPPORT
-  #include "SdFatUtil.h"
-  int freeMemory() { return SdFatUtil::FreeRam(); }
-#else
-  extern "C" {
-    extern unsigned int __bss_end;
-    extern unsigned int __heap_start;
-    extern void *__brkval;
+extern "C"{
+  extern unsigned int __bss_end;
+  extern unsigned int __heap_start;
+  extern void *__brkval;
 
-    int freeMemory() {
-      int free_memory;
+  int freeMemory() {
+    int free_memory;
 
-      if ((int)__brkval == 0)
-        free_memory = ((int)&free_memory) - ((int)&__bss_end);
-      else
-        free_memory = ((int)&free_memory) - ((int)__brkval);
+    if((int)__brkval == 0)
+      free_memory = ((int)&free_memory) - ((int)&__bss_end);
+    else
+      free_memory = ((int)&free_memory) - ((int)__brkval);
 
-      return free_memory;
-    }
+    return free_memory;
   }
-#endif //!SDSUPPORT
+}
 
 //adds an command to the main command buffer
 //thats really done in a non-safe way.
@@ -437,7 +429,7 @@ void enquecommand(const char *cmd)
     //this is dangerous if a mixing of serial and this happens
     strcpy(&(cmdbuffer[bufindw][0]),cmd);
     SERIAL_ECHO_START;
-    SERIAL_ECHOPGM(MSG_Enqueing);
+    SERIAL_ECHOPGM("enqueing \"");
     SERIAL_ECHO(cmdbuffer[bufindw]);
     SERIAL_ECHOLNPGM("\"");
     bufindw= (bufindw + 1)%BUFSIZE;
@@ -452,7 +444,7 @@ void enquecommand_P(const char *cmd)
     //this is dangerous if a mixing of serial and this happens
     strcpy_P(&(cmdbuffer[bufindw][0]),cmd);
     SERIAL_ECHO_START;
-    SERIAL_ECHOPGM(MSG_Enqueing);
+    SERIAL_ECHOPGM("enqueing \"");
     SERIAL_ECHO(cmdbuffer[bufindw]);
     SERIAL_ECHOLNPGM("\"");
     bufindw= (bufindw + 1)%BUFSIZE;
@@ -729,7 +721,14 @@ void get_command()
           case 1:
           case 2:
           case 3:
-            if (Stopped == true) {
+            if(Stopped == false) { // If printer is stopped by an error the G[0-3] codes are ignored.
+          #ifdef SDSUPPORT
+              if(card.saving)
+                break;
+          #endif //SDSUPPORT
+              SERIAL_PROTOCOLLNPGM(MSG_OK);
+            }
+            else {
               SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
               LCD_MESSAGEPGM(MSG_STOPPED);
             }
@@ -1058,16 +1057,11 @@ static void run_z_probe() {
 static void do_blocking_move_to(float x, float y, float z) {
     float oldFeedRate = feedrate;
 
-    feedrate = homing_feedrate[Z_AXIS];
-
-    current_position[Z_AXIS] = z;
-    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate/60, active_extruder);
-    st_synchronize();
-
     feedrate = XY_TRAVEL_SPEED;
 
     current_position[X_AXIS] = x;
     current_position[Y_AXIS] = y;
+    current_position[Z_AXIS] = z;
     plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
 
@@ -1363,6 +1357,7 @@ void process_commands()
           #endif //FWRETRACT
         prepare_move();
         //ClearToSend();
+        return;
       }
       break;
 #ifndef SCARA //disable arc support
@@ -1370,12 +1365,14 @@ void process_commands()
       if(Stopped == false) {
         get_arc_coordinates();
         prepare_arc_move(true);
+        return;
       }
       break;
     case 3: // G3  - CCW ARC
       if(Stopped == false) {
         get_arc_coordinates();
         prepare_arc_move(false);
+        return;
       }
       break;
 #endif
@@ -1540,7 +1537,7 @@ void process_commands()
 		#ifdef SCARA
 		   current_position[X_AXIS]=code_value();
 		#else
-		   current_position[X_AXIS]=code_value()+add_homing[X_AXIS];
+		   current_position[X_AXIS]=code_value()+add_homing[0];
 		#endif
         }
       }
@@ -1550,7 +1547,7 @@ void process_commands()
          #ifdef SCARA
 		   current_position[Y_AXIS]=code_value();
 		#else
-		   current_position[Y_AXIS]=code_value()+add_homing[Y_AXIS];
+		   current_position[Y_AXIS]=code_value()+add_homing[1];
 		#endif
         }
       }
@@ -1571,7 +1568,7 @@ void process_commands()
             destination[X_AXIS] = round(Z_SAFE_HOMING_X_POINT - X_PROBE_OFFSET_FROM_EXTRUDER);
             destination[Y_AXIS] = round(Z_SAFE_HOMING_Y_POINT - Y_PROBE_OFFSET_FROM_EXTRUDER);
             destination[Z_AXIS] = Z_RAISE_BEFORE_HOMING * home_dir(Z_AXIS) * (-1);    // Set destination away from bed
-            feedrate = XY_TRAVEL_SPEED/60;
+            feedrate = XY_TRAVEL_SPEED;
             current_position[Z_AXIS] = 0;
 
             plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
@@ -1615,7 +1612,7 @@ void process_commands()
 
       if(code_seen(axis_codes[Z_AXIS])) {
         if(code_value_long() != 0) {
-          current_position[Z_AXIS]=code_value()+add_homing[Z_AXIS];
+          current_position[Z_AXIS]=code_value()+add_homing[2];
         }
       }
       #ifdef ENABLE_AUTO_BED_LEVELING
@@ -1629,7 +1626,7 @@ void process_commands()
 #ifdef SCARA
 	  calculate_delta(current_position);
       plan_set_position(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], current_position[E_AXIS]);
-#endif // SCARA
+#endif SCARA
 
       #ifdef ENDSTOPS_ONLY_FOR_HOMING
         enable_endstops(false);
@@ -1899,8 +1896,6 @@ void process_commands()
         }
         lcd_ignore_click(false);
       }else{
-          if (!lcd_detected())
-            break;
         while(!lcd_clicked()){
           manage_heater();
           manage_inactivity();
@@ -2748,9 +2743,9 @@ Sigma_Exit:
       SERIAL_PROTOCOLLN("");
       
       SERIAL_PROTOCOLPGM("SCARA Cal - Theta:");
-      SERIAL_PROTOCOL(delta[X_AXIS]+add_homing[X_AXIS]);
+      SERIAL_PROTOCOL(delta[X_AXIS]+add_homing[0]);
       SERIAL_PROTOCOLPGM("   Psi+Theta (90):");
-      SERIAL_PROTOCOL(delta[Y_AXIS]-delta[X_AXIS]-90+add_homing[Y_AXIS]);
+      SERIAL_PROTOCOL(delta[Y_AXIS]-delta[X_AXIS]-90+add_homing[1]);
       SERIAL_PROTOCOLLN("");
       
       SERIAL_PROTOCOLPGM("SCARA step Cal - Theta:");
@@ -2886,11 +2881,11 @@ Sigma_Exit:
 	  #ifdef SCARA
 	   if(code_seen('T'))       // Theta
       {
-        add_homing[X_AXIS] = code_value() ;
+        add_homing[0] = code_value() ;
       }
       if(code_seen('P'))       // Psi
       {
-        add_homing[Y_AXIS] = code_value() ;
+        add_homing[1] = code_value() ;
       }
 	  #endif
       break;
@@ -3066,12 +3061,11 @@ Sigma_Exit:
 
           if (pin_number > -1)
           {
-            int target = LOW;
-
             st_synchronize();
 
             pinMode(pin_number, INPUT);
 
+            int target;
             switch(pin_state){
             case 1:
               target = HIGH;
@@ -3279,11 +3273,11 @@ Sigma_Exit:
       //SERIAL_ECHOLN(" Soft endstops disabled ");
       if(Stopped == false) {
         //get_coordinates(); // For X Y Z E F
-        delta[X_AXIS] = 0;
-        delta[Y_AXIS] = 120;
+        delta[0] = 0;
+        delta[1] = 120;
         calculate_SCARA_forward_Transform(delta);
-        destination[X_AXIS] = delta[X_AXIS]/axis_scaling[X_AXIS];
-        destination[Y_AXIS] = delta[Y_AXIS]/axis_scaling[Y_AXIS];
+        destination[0] = delta[0]/axis_scaling[X_AXIS];
+        destination[1] = delta[1]/axis_scaling[Y_AXIS];
         
         prepare_move();
         //ClearToSend();
@@ -3297,11 +3291,11 @@ Sigma_Exit:
       //SERIAL_ECHOLN(" Soft endstops disabled ");
       if(Stopped == false) {
         //get_coordinates(); // For X Y Z E F
-        delta[X_AXIS] = 90;
-        delta[Y_AXIS] = 130;
+        delta[0] = 90;
+        delta[1] = 130;
         calculate_SCARA_forward_Transform(delta);
-        destination[X_AXIS] = delta[X_AXIS]/axis_scaling[X_AXIS];
-        destination[Y_AXIS] = delta[Y_AXIS]/axis_scaling[Y_AXIS];
+        destination[0] = delta[0]/axis_scaling[X_AXIS];
+        destination[1] = delta[1]/axis_scaling[Y_AXIS];
         
         prepare_move();
         //ClearToSend();
@@ -3314,11 +3308,11 @@ Sigma_Exit:
       //SERIAL_ECHOLN(" Soft endstops disabled ");
       if(Stopped == false) {
         //get_coordinates(); // For X Y Z E F
-        delta[X_AXIS] = 60;
-        delta[Y_AXIS] = 180;
+        delta[0] = 60;
+        delta[1] = 180;
         calculate_SCARA_forward_Transform(delta);
-        destination[X_AXIS] = delta[X_AXIS]/axis_scaling[X_AXIS];
-        destination[Y_AXIS] = delta[Y_AXIS]/axis_scaling[Y_AXIS];
+        destination[0] = delta[0]/axis_scaling[X_AXIS];
+        destination[1] = delta[1]/axis_scaling[Y_AXIS];
         
         prepare_move();
         //ClearToSend();
@@ -3331,11 +3325,11 @@ Sigma_Exit:
       //SERIAL_ECHOLN(" Soft endstops disabled ");
       if(Stopped == false) {
         //get_coordinates(); // For X Y Z E F
-        delta[X_AXIS] = 50;
-        delta[Y_AXIS] = 90;
+        delta[0] = 50;
+        delta[1] = 90;
         calculate_SCARA_forward_Transform(delta);
-        destination[X_AXIS] = delta[X_AXIS]/axis_scaling[X_AXIS];
-        destination[Y_AXIS] = delta[Y_AXIS]/axis_scaling[Y_AXIS];
+        destination[0] = delta[0]/axis_scaling[X_AXIS];
+        destination[1] = delta[1]/axis_scaling[Y_AXIS];
         
         prepare_move();
         //ClearToSend();
@@ -3348,11 +3342,11 @@ Sigma_Exit:
       //SERIAL_ECHOLN(" Soft endstops disabled ");
       if(Stopped == false) {
         //get_coordinates(); // For X Y Z E F
-        delta[X_AXIS] = 45;
-        delta[Y_AXIS] = 135;
+        delta[0] = 45;
+        delta[1] = 135;
         calculate_SCARA_forward_Transform(delta);
-        destination[X_AXIS] = delta[X_AXIS]/axis_scaling[X_AXIS];
-        destination[Y_AXIS] = delta[Y_AXIS]/axis_scaling[Y_AXIS]; 
+        destination[0] = delta[0]/axis_scaling[X_AXIS];
+        destination[1] = delta[1]/axis_scaling[Y_AXIS]; 
         
         prepare_move();
         //ClearToSend();
@@ -3946,14 +3940,7 @@ void clamp_to_software_endstops(float target[3])
   if (min_software_endstops) {
     if (target[X_AXIS] < min_pos[X_AXIS]) target[X_AXIS] = min_pos[X_AXIS];
     if (target[Y_AXIS] < min_pos[Y_AXIS]) target[Y_AXIS] = min_pos[Y_AXIS];
-    
-    float negative_z_offset = 0;
-    #ifdef ENABLE_AUTO_BED_LEVELING
-      if (Z_PROBE_OFFSET_FROM_EXTRUDER < 0) negative_z_offset = negative_z_offset + Z_PROBE_OFFSET_FROM_EXTRUDER;
-      if (add_homing[Z_AXIS] < 0) negative_z_offset = negative_z_offset + add_homing[Z_AXIS];
-    #endif
-    
-    if (target[Z_AXIS] < min_pos[Z_AXIS]+negative_z_offset) target[Z_AXIS] = min_pos[Z_AXIS]+negative_z_offset;
+    if (target[Z_AXIS] < min_pos[Z_AXIS]) target[Z_AXIS] = min_pos[Z_AXIS];
   }
 
   if (max_software_endstops) {
@@ -4031,9 +4018,9 @@ for (int s = 1; s <= steps; s++) {
 
 	
 	calculate_delta(destination);
-         //SERIAL_ECHOPGM("destination[X_AXIS]="); SERIAL_ECHOLN(destination[X_AXIS]);
-         //SERIAL_ECHOPGM("destination[Y_AXIS]="); SERIAL_ECHOLN(destination[Y_AXIS]);
-         //SERIAL_ECHOPGM("destination[Z_AXIS]="); SERIAL_ECHOLN(destination[Z_AXIS]);
+         //SERIAL_ECHOPGM("destination[0]="); SERIAL_ECHOLN(destination[0]);
+         //SERIAL_ECHOPGM("destination[1]="); SERIAL_ECHOLN(destination[1]);
+         //SERIAL_ECHOPGM("destination[2]="); SERIAL_ECHOLN(destination[2]);
          //SERIAL_ECHOPGM("delta[X_AXIS]="); SERIAL_ECHOLN(delta[X_AXIS]);
          //SERIAL_ECHOPGM("delta[Y_AXIS]="); SERIAL_ECHOLN(delta[Y_AXIS]);
          //SERIAL_ECHOPGM("delta[Z_AXIS]="); SERIAL_ECHOLN(delta[Z_AXIS]);
