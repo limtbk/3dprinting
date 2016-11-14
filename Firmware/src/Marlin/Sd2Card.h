@@ -17,6 +17,10 @@
  * along with the Arduino Sd2Card Library.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
+
+#include "Marlin.h"
+#ifdef SDSUPPORT
+
 #ifndef Sd2Card_h
 #define Sd2Card_h
 /**
@@ -99,6 +103,8 @@ uint8_t const SD_CARD_ERROR_WRITE_TIMEOUT = 0X17;
 uint8_t const SD_CARD_ERROR_SCK_RATE = 0X18;
 /** init() not called */
 uint8_t const SD_CARD_ERROR_INIT_NOT_CALLED = 0X19;
+/** crc check error */
+uint8_t const SD_CARD_ERROR_CRC = 0X20;
 //------------------------------------------------------------------------------
 // card types
 /** Standard capacity V1 SD card */
@@ -232,3 +238,6 @@ class Sd2Card {
   bool writeData(uint8_t token, const uint8_t* src);
 };
 #endif  // Sd2Card_h
+
+
+#endif

@@ -19,7 +19,6 @@
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Configuration.h"
 #include "Marlin.h"
 #include "stepper.h"
 #include "planner.h"
@@ -27,7 +26,7 @@
 // The arc is approximated by generating a huge number of tiny, linear segments. The length of each 
 // segment is configured in settings.mm_per_arc_segment.  
 void mc_arc(float *position, float *target, float *offset, uint8_t axis_0, uint8_t axis_1, 
-  uint8_t axis_linear, float feed_rate, float radius, uint8_t isclockwise)
+  uint8_t axis_linear, float feed_rate, float radius, uint8_t isclockwise, uint8_t extruder)
 {      
   //   int acceleration_manager_was_enabled = plan_is_acceleration_manager_enabled();
   //   plan_set_acceleration_manager_enabled(false); // disable acceleration management for the duration of the arc
@@ -45,9 +44,19 @@ void mc_arc(float *position, float *target, float *offset, uint8_t axis_0, uint8
   if (angular_travel < 0) { angular_travel += 2*M_PI; }
   if (isclockwise) { angular_travel -= 2*M_PI; }
   
+  //20141002:full circle for G03 did not work, e.g. G03 X80 Y80 I20 J0 F2000 is giving an Angle of zero so head is not moving
+  //to compensate when start pos = target pos && angle is zero -> angle = 2Pi
+  if (position[axis_0] == target[axis_0] && position[axis_1] == target[axis_1] && angular_travel == 0)
+  {
+	  angular_travel += 2*M_PI;
+  }
+  //end fix G03
+  
   float millimeters_of_travel = hypot(angular_travel*radius, fabs(linear_travel));
-  if (millimeters_of_travel == 0.0) { return; }
+  if (millimeters_of_travel < 0.001) { return; }
   uint16_t segments = floor(millimeters_of_travel/MM_PER_ARC_SEGMENT);
+  if(segments == 0) segments = 1;
+  
   /*  
     // Multiply inverse feed_rate to compensate for the fact that this movement is approximated
     // by a number of discrete segments. The inverse feed_rate should be correct for the sum of 
@@ -123,11 +132,13 @@ void mc_arc(float *position, float *target, float *offset, uint8_t axis_0, uint8
     arc_target[axis_1] = center_axis1 + r_axis1;
     arc_target[axis_linear] += linear_per_segment;
     arc_target[E_AXIS] += extruder_per_segment;
-    plan_buffer_line(arc_target[X_AXIS], arc_target[Y_AXIS], arc_target[Z_AXIS], arc_target[E_AXIS], feed_rate);
+
+    clamp_to_software_endstops(arc_target);
+    plan_buffer_line(arc_target[X_AXIS], arc_target[Y_AXIS], arc_target[Z_AXIS], arc_target[E_AXIS], feed_rate, extruder);
     
   }
   // Ensure last segment arrives at target location.
-  plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feed_rate);
+  plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feed_rate, extruder);
 
   //   plan_set_acceleration_manager_enabled(acceleration_manager_was_enabled);
 }

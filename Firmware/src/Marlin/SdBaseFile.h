@@ -17,18 +17,16 @@
  * along with the Arduino SdFat Library.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
+#include "Marlin.h"
+#ifdef SDSUPPORT
+
 #ifndef SdBaseFile_h
 #define SdBaseFile_h
 /**
  * \file
  * \brief SdBaseFile class
  */
-#include <avr/pgmspace.h>
-#if ARDUINO < 100
-#include <WProgram.h>
-#else  // ARDUINO
-#include <Arduino.h>
-#endif  // ARDUINO
+#include "Marlin.h"
 #include "SdFatConfig.h"
 #include "SdVolume.h"
 //------------------------------------------------------------------------------
@@ -268,8 +266,7 @@ class SdBaseFile {
   bool isRoot() const {
     return type_ == FAT_FILE_TYPE_ROOT_FIXED || type_ == FAT_FILE_TYPE_ROOT32;
   }
-  void ls(Print* pr, uint8_t flags = 0, uint8_t indent = 0);
-  void ls(uint8_t flags = 0);
+  void ls( uint8_t flags = 0, uint8_t indent = 0);
   bool mkdir(SdBaseFile* dir, const char* path, bool pFlag = true);
   // alias for backward compactability
   bool makeDir(SdBaseFile* dir, const char* path) {
@@ -282,13 +279,11 @@ class SdBaseFile {
   bool openRoot(SdVolume* vol);
   int peek();
   static void printFatDate(uint16_t fatDate);
-  static void printFatDate(Print* pr, uint16_t fatDate);
-  static void printFatTime(uint16_t fatTime);
-  static void printFatTime(Print* pr, uint16_t fatTime);
+  static void printFatTime( uint16_t fatTime);
   bool printName();
   int16_t read();
   int16_t read(void* buf, uint16_t nbyte);
-  int8_t readDir(dir_t* dir);
+  int8_t readDir(dir_t* dir, char* longFilename);
   static bool remove(SdBaseFile* dirFile, const char* path);
   bool remove();
   /** Set the file's current position to zero. */
@@ -357,7 +352,7 @@ class SdBaseFile {
   bool addCluster();
   bool addDirCluster();
   dir_t* cacheDirEntry(uint8_t action);
-  int8_t lsPrintNext(Print *pr, uint8_t flags, uint8_t indent);
+  int8_t lsPrintNext( uint8_t flags, uint8_t indent);
   static bool make83Name(const char* str, uint8_t* name, const char** ptr);
   bool mkdir(SdBaseFile* parent, const uint8_t dname[11]);
   bool open(SdBaseFile* dirFile, const uint8_t dname[11], uint8_t oflag);
@@ -365,9 +360,7 @@ class SdBaseFile {
   dir_t* readDirCache();
 //------------------------------------------------------------------------------
 // to be deleted
-  static void printDirName(const dir_t& dir,
-    uint8_t width, bool printSlash);
-  static void printDirName(Print* pr, const dir_t& dir,
+  static void printDirName( const dir_t& dir,
     uint8_t width, bool printSlash);
 //------------------------------------------------------------------------------
 // Deprecated functions  - suppress cpplint warnings with NOLINT comment
@@ -462,7 +455,7 @@ class SdBaseFile {
    * \param[out] dir The dir_t struct that will receive the data.
    * \return bytes read for success zero for eof or -1 for failure.
    */
-  int8_t readDir(dir_t& dir) {return readDir(&dir);}  // NOLINT
+  int8_t readDir(dir_t& dir, char* longFilename) {return readDir(&dir, longFilename);}  // NOLINT
   /** \deprecated Use:
    * static uint8_t remove(SdBaseFile* dirFile, const char* path);
    * \param[in] dirFile The directory that contains the file.
@@ -487,3 +480,4 @@ class SdBaseFile {
 };
 
 #endif  // SdBaseFile_h
+#endif
