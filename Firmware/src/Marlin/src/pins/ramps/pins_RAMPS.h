@@ -83,7 +83,7 @@
 //
 #ifndef X_STOP_PIN
   #ifndef X_MIN_PIN
-    #define X_MIN_PIN                          3
+    #define X_MIN_PIN                          14 //3
   #endif
   #ifndef X_MAX_PIN
     #define X_MAX_PIN                          2
@@ -91,7 +91,7 @@
 #endif
 #ifndef Y_STOP_PIN
   #ifndef Y_MIN_PIN
-    #define Y_MIN_PIN                         14
+    #define Y_MIN_PIN                         3 //14
   #endif
   #ifndef Y_MAX_PIN
     #define Y_MAX_PIN                         15
@@ -196,6 +196,9 @@
 #ifndef MOSFET_D_PIN
   #define MOSFET_D_PIN                        -1
 #endif
+#ifndef RAMPS_D7_PIN
+  #define RAMPS_D7_PIN                         7
+#endif
 #ifndef RAMPS_D8_PIN
   #define RAMPS_D8_PIN                         8
 #endif
@@ -207,6 +210,7 @@
 #endif
 
 #define HEATER_0_PIN               RAMPS_D10_PIN
+#define HEATER_1_PIN               RAMPS_D7_PIN   // PRIME 2X workaround
 
 #if ENABLED(IS_RAMPS_EFB)                         // Hotend, Fan, Bed
   #define HEATER_BED_PIN            RAMPS_D8_PIN
